@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html>
+<head lang="zh-CN">
+    <meta charset="UTF-8">
+    <title>在线设计工具</title>
+    <link rel="stylesheet" href="css/default.css"/>
+</head>
+<body>
+<script type="text/javascript">
+    //拖放经过时
+    function allowDrop(ev) {
+        ev.preventDefault();
+    }
+    //拖
+    function drag(ev) {
+        ev.dataTransfer.setData("Text", ev.target.id);
+        saveCurrCanvasState();
+    }
+    //放
+    function drop(ev) {
+        ev.preventDefault();
+        var data = ev.dataTransfer.getData("Text");
+        //初始化图片
+        fabric.Image.fromURL(data, function (img) {
+            img.scale(0.5).set({
+                left: ev.x,
+                top: ev.y,
+                angle: -5,
+                originX: 'center',
+                originY: 'center'
+            });
+            //白色透明处理
+            if ($("#cbox_whiteTrans").attr("checked")) {
+                img.filters.push(new fabric.Image.filters.RemoveWhite());
+                img.applyFilters(canvas.renderAll.bind(canvas));
+            }
+            canvas.add(img).setActiveObject(img);
+            canvas.renderAll();
+            //保存当前画布
+            saveCurrCanvasState();
+        });
+    }
+</script>
+<!-- 画布区域 -->
+<div ondrop="drop(event)" ondragover="allowDrop(event)" id="canvas_container">
+    <canvas id="fabrictable"></canvas>
+</div>
+<!-- 顶部横排按钮 -->
+<div id="top_btns">
+    <span class="wrapper_top_btn" id="btn_new"><img src="images/new.png" class="btn top_btn"/><span
+            class="label">新建</span></span><span class="vline"></span>
+    <span class="wrapper_top_btn" id="btn_open"><img src="images/open.png" class="btn top_btn"/><span class="label">打开</span></span><span
+        class="vline"></span>
+    <span class="wrapper_top_btn" id="btn_save"><img src="images/save.png" class="btn top_btn"/><span class="label">保存</span></span><span
+        class="vline"></span>
+    <span class="wrapper_top_btn" id="btn_saveAs"><img src="images/saveAs.png" class="btn top_btn"/><span
+            class="label">另存为</span></span><span class="vline"></span>
+    <span class="wrapper_top_btn" id="btn_back"><img src="images/back.png" class="btn top_btn"/><span class="label">撤销</span></span><span
+        class="vline"></span>
+    <span class="wrapper_top_btn" id="btn_redo"><img src="images/redo.png" class="btn top_btn"/><span class="label">重做</span></span>
+</div>
+<!-- 左侧竖排按钮 -->
+<div id="left_btns">
+    <span class="wrapper_left_btn" id="btn_del"><img src="images/del.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_copy"><img src="images/copy.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_xMirror"><img src="images/xMirror.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_yMirror"><img src="images/yMirror.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_up"><img src="images/down.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_down"><img src="images/up.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_group"><img src="images/group.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_ungroup"><img src="images/ungroup.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_lock"><img src="images/lock.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_change"><img src="images/change.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_line"><img src="images/line.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_area"><img src="images/area.png" class="btn left_btn"/></span>
+</div>
+<!-- 右侧图片区域u -->
+<div id="imgs">
+    <img class="img" src="images/pics/s10.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s11.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s12.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s13.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s14.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s15.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s16.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s17.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s18.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s19.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s20.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/s21.jpg" draggable="true" ondragstart="drag(event)"/>
+</div>
+<!-- 选项区 -->
+<div id="optional">
+    <span class="optional_item">
+        <span class="controls" id="lbl_whiteTrans">变形矩阵</span>
+        <span class="controls">
+            <input type="number" value="1" step="0.1" id="transformMatrix_item_a" class="transformMatrix_item">
+            <input type="number" value="0" step="0.1" id="transformMatrix_item_b" class="transformMatrix_item">
+            <input type="number" value="0" step="0.1" id="transformMatrix_item_c" class="transformMatrix_item"><br/>
+            <input type="number" value="1" step="0.1" id="transformMatrix_item_d" class="transformMatrix_item">
+            <input type="number" value="0" step="0.1" id="transformMatrix_item_tx" class="transformMatrix_item">
+            <input type="number" value="0" step="0.1" id="transformMatrix_item_ty" class="transformMatrix_item">
+        </span>
+    </span>
+    <span class="optional_item">
+        <input type="checkbox" value="白色透明处理" class="controls" id="cbox_whiteTrans"/>
+        <span class="controls">白色透明处理</span>
+    </span>
+</div>
+</body>
+</html>
+
+<script src="js/fabric-1.4.0.js"></script>
+<script src="js/jquery.min.js"></script>
+
+<script type="text/javascript">
+    var canvas;
+    var canvasStateArray = [];
+
+
+    //保存画布状态
+    function saveCurrCanvasState(e) {
+        setTimeout(function () {
+            console.log('自动保存操作');
+            canvas.clone(function (obj) {
+                if (canvasStateArray.length >= 100000) {
+                    canvasStateArray.splice(0, 10000);
+                }
+                canvasStateArray.push(obj);
+                console.log(canvasStateArray);
+            });
+
+            //something else
+
+        }, 100);
+    }
+
+    $(function () {
+        $(".transformMatrix_item").change(function () {
+            if (canvas.getActiveObject()) {
+                var transformMatrixArray = [];
+                var a = $("#transformMatrix_item_a").val();
+                var b = $("#transformMatrix_item_b").val();
+                var c = $("#transformMatrix_item_c").val();
+                var d = $("#transformMatrix_item_d").val();
+                var tx = $("#transformMatrix_item_tx").val();
+                var ty = $("#transformMatrix_item_ty").val();
+                transformMatrixArray.push(a, b, c, d, tx, ty);
+                console.log('改变了：' + transformMatrixArray);
+                canvas.getActiveObject().set({
+                    transformMatrix: transformMatrixArray
+                });
+                canvas.renderAll();
+            }
+        });
+        $("#cbox_whiteTrans").change(function () {
+            if ($(this).attr('checked')) {
+                $(this).removeAttr('checked')
+            } else {
+                $(this).attr('checked', 'checked')
+            }
+            console.log($(this).attr('checked'));
+        });
+        $(document).bind("contextmenu", function () {
+            return false;
+        });//屏蔽右键
+        canvas = new fabric.Canvas('fabrictable', {
+            allowTouchScrolling: true
+        });
+        canvas.setWidth(document.body.clientWidth - 5);
+        canvas.setHeight(window.innerHeight - 8);
+
+        //新建
+        $("#btn_new").click(function () {
+            console.log('新建');
+            var jsonstr = prompt('请输入JSON');
+            if (jsonstr) {
+                var jsonobj = JSON.parse(jsonstr);
+                if (jsonobj.type == 'image') {//处理单文件
+                    fabric.Image.fromObject(jsonobj, function (obj) {
+                        canvas.add(obj).setActiveObject(obj);
+                        canvas.renderAll();
+                    });
+                } else if (jsonobj.type == 'group') {//处理组
+                    fabric.Group.fromObject(jsonobj, function (group) {
+                        group.set({
+                            left: 0,
+                            top: 0
+                        });
+                        canvas.add(group).setActiveGroup(group);
+                        canvas.renderAll();
+                    });
+                }
+            }
+        });
+
+        //打开
+        $("#btn_open").click(function () {
+            console.log('打开');
+
+        });
+
+        //打开文件
+        $("#btn_openfile").change(function () {
+            var file = this.files[0];
+            var reader = new FileReader();
+            reader.onload = function () {
+                var url = reader.result;
+                fabric.Image.fromURL(url, function (img) {
+                    img.scale(0.5).set({
+                        left: 200,
+                        top: 200,
+                        angle: -15
+                    });
+                    canvas.add(img).setActiveObject(img);
+                    //保存当前画布
+                    saveCurrCanvasState();
+                    canvas.renderAll();
+                });
+            };
+            reader.readAsDataURL(file);
+        });
+        //复制:ok
+        $("#btn_copy").click(function () {
+            console.log('开始复制-->');
+            var target = canvas.getActiveObject() == null ? canvas.getActiveGroup() : canvas.getActiveObject();
+            if (canvas.getActiveObject()) {
+                target = canvas.getActiveObject();
+                //处理单个复制
+                console.log('图片对象...');
+                var copy_target = fabric.util.object.clone(target);
+                canvas.add(copy_target);
+            } else if (canvas.getActiveGroup()) {
+                target = canvas.getActiveGroup();
+                //处理多个复制
+                console.log('动态组合对象...');
+                //重新添加副本
+                for (var i = 0; i < target.getObjects().length; i++) {
+                    var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
+                    copy_obj.set({
+                        left: copy_obj.left + target.left,
+                        top: copy_obj.top + target.top,
+                        hasControls: true,
+                        hasBorders: true,
+                        active: false
+                    });
+                    canvas.add(copy_obj);
+                }
+            }
+            canvas.renderAll();
+            console.log('<--复制完成');
+        });
+        //删除:ok
+        $("#btn_del").click(function () {
+            console.log('开始删除-->');
+            if (canvas.getActiveObject()) {
+                canvas.remove(canvas.getActiveObject());
+            } else if (canvas.getActiveGroup()) {
+                for (var i = 0; i < canvas.getActiveGroup().getObjects().length; i++) {
+                    canvas.remove(canvas.getActiveGroup().getObjects()[i]);
+                }
+                canvas.setActiveGroup(null);
+            }
+            canvas.renderAll();
+            console.log('<--删除完成');
+        });
+        //保存:ok
+        $("#btn_save").click(function () {
+            console.log('保存')
+            if (canvas.getActiveObject()) {
+                console.log(JSON.stringify(canvas.getActiveObject()));
+                prompt('拷贝下面的数据可以直接保存', JSON.stringify(canvas.getActiveObject()));
+            } else if (canvas.getActiveGroup()) {
+                console.log(JSON.stringify(canvas.getActiveGroup()));
+                prompt('拷贝下面的数据可以直接保存', JSON.stringify(canvas.getActiveGroup()));
+            }
+
+        });
+        //另存为
+        $("#btn_saveAs").click(function () {
+            if (canvas.getActiveObject()) {
+                window.open(canvas.getActiveObject().toDataURL(), '图片另存为');
+            } else if (canvas.getActiveGroup()) {
+                window.open(canvas.getActiveGroup().toDataURL(), '图片另存为');
+            }
+        });
+
+        //水平镜像:ok
+        $("#btn_xMirror").click(function () {
+            if (canvas.getActiveObject()) {
+                var obj = canvas.getActiveObject();
+                obj.flipX = !obj.flipX;
+            } else if (canvas.getActiveGroup()) {
+                canvas.getActiveGroup().flipX = !canvas.getActiveGroup().flipX;
+            }
+            canvas.renderAll();
+        });
+        //垂直镜像:ok
+        $("#btn_yMirror").click(function () {
+            if (canvas.getActiveObject()) {
+                var obj = canvas.getActiveObject();
+                obj.flipY = !obj.flipY;
+            } else if (canvas.getActiveGroup()) {
+                canvas.getActiveGroup().flipY = !canvas.getActiveGroup().flipY;
+            }
+            canvas.renderAll();
+        });
+
+        //撤销
+        $("#btn_back").click(function () {
+            if (!canvasStateArray) return;
+            var obj = canvasStateArray.pop();
+            if (obj) {
+                canvas.clear();
+                for (var i = 0; i < obj.getObjects().length; i++) {
+                    canvas.add(obj.getObjects()[i]).setActiveObject(obj.getObjects()[i]);
+                }
+                canvas.renderAll();
+            }
+
+        });
+        //重做
+        $("#btn_redo").click(function () {
+            if (!canvasStateArray) return;
+            var obj = canvasStateArray[0];
+            if (obj) {
+                canvas.clear();
+                for (var i = 0; i < obj.getObjects().length; i++) {
+                    canvas.add(obj.getObjects()[i]).setActiveObject(obj.getObjects()[i]);
+                }
+                canvasStateArray = [];
+                canvas.renderAll();
+            }
+        });
+
+        //顶层:ok
+        $("#btn_top").click(function () {
+            if (canvas.getActiveObject()) {
+                canvas.getActiveObject().bringToFront();
+            } else if (canvas.getActiveGroup()) {
+            }
+            canvas.renderAll();
+        });
+        //底层:ok
+        $("#btn_bottom").click(function () {
+            if (canvas.getActiveObject()) {
+                canvas.getActiveObject().sendToBack();
+            } else if (canvas.getActiveGroup()) {
+            }
+            canvas.renderAll();
+        });
+        //上层:ok
+        $("#btn_up").click(function () {
+            if (canvas.getActiveObject()) {
+                canvas.getActiveObject().bringForward();
+            } else if (canvas.getActiveGroup()) {
+
+            }
+            canvas.renderAll();
+        });
+        //下层:ok
+        $("#btn_down").click(function () {
+            console.log(canvas.getActiveObject());
+            if (canvas.getActiveObject()) {
+                canvas.getActiveObject().sendBackwards();
+            } else if (canvas.getActiveGroup()) {
+            }
+            canvas.renderAll();
+        });
+
+        //成组
+        $("#btn_group").click(function () {
+            console.log('开始分组-->');
+            var target = canvas.getActiveGroup();
+            if (target) {
+                //处理多个分组
+                console.log('组合对象...');
+                var copy_target = fabric.util.object.clone(target);
+                copy_target._objects = [];//清除内部元素
+                //重新添加副本
+                for (var i = 0; i < target.getObjects().length; i++) {
+                    var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
+                    copy_target._objects.push(copy_obj);
+                    canvas.remove(target.getObjects()[i]);
+                }
+                canvas.remove(target);
+                canvas.add(copy_target);
+                canvas.renderAll();
+            }
+            console.log('<--分组完成');
+        });
+        //解组
+        $("#btn_ungroup").click(function () {
+            console.log('开始解组-->');
+            var target = canvas.getActiveObject();
+            if (target) {
+                //处理单个解组
+                console.log('组合对象...');
+                var copy_target = fabric.util.object.clone(target);
+                //处理多个解组
+                for (var i = 0; i < target.getObjects().length; i++) {
+                    var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
+                    copy_obj.set({
+                        left: copy_obj.left + copy_target.left,
+                        top: copy_obj.top + copy_target.top,
+                        hasControls: true,
+                        hasBorders: true,
+                        active: false
+                    });
+                    canvas.add(copy_obj);
+                }
+                canvas.remove(target);
+                canvas.renderAll();
+            }
+            console.log('<--解组完成');
+        });
+
+        //锁定
+        $("#btn_lock").click(function () {
+            if (canvas.getActiveObject()) {
+                canvas.getActiveObject().lockMovementX = !canvas.getActiveObject().lockMovementX;
+                canvas.getActiveObject().lockMovementY = !canvas.getActiveObject().lockMovementY;
+                canvas.getActiveObject().lockRotation = !canvas.getActiveObject().lockRotation;
+                canvas.getActiveObject().lockScalingFlip = !canvas.getActiveObject().lockScalingFlip;
+                canvas.getActiveObject().lockScalingX = !canvas.getActiveObject().lockScalingX;
+                canvas.getActiveObject().lockScalingY = !canvas.getActiveObject().lockScalingY;
+            } else if (canvas.getActiveGroup()) {
+                for (var i = 0; i < canvas.getActiveGroup().getObjects().length; i++) {
+                    canvas.getActiveGroup().getObjects()[i].lockMovementX = !canvas.getActiveGroup().getObjects()[i].lockMovementX;
+                    canvas.getActiveGroup().getObjects()[i].lockMovementY = !canvas.getActiveGroup().getObjects()[i].lockMovementY;
+                    canvas.getActiveGroup().getObjects()[i].lockRotation = !canvas.getActiveGroup().getObjects()[i].lockRotation;
+                    canvas.getActiveGroup().getObjects()[i].lockScalingFlip = !canvas.getActiveGroup().getObjects()[i].lockScalingFlip;
+                    canvas.getActiveGroup().getObjects()[i].lockScalingX = !canvas.getActiveGroup().getObjects()[i].lockScalingX;
+                    canvas.getActiveGroup().getObjects()[i].lockScalingY = !canvas.getActiveGroup().getObjects()[i].lockScalingY;
+                }
+            }
+            canvas.renderAll();
+        });
+        //形变
+        $("#btn_change").click(function () {
+
+
+        });
+        canvas.on('object:modified', saveCurrCanvasState);
+        canvas.on('object:selected', function (event) {
+//            if(!event.target) return;
+//            console.log('目标被选中：'+event.target);
+//            var hand = $("<button>哈哈</button>");
+//            hand.click(function(){
+//                console.log(event.target);
+//            });
+//            hand.css({
+//                position:'absolute',
+//                left:event.target.left,
+//                top:event.target.top
+//            });
+//            $(document.body).append(hand);
+//            console.log(event.target.left+"/"+event.target.top);
+        });
+        canvas.on('object:move', function (event) {
+
+        });
+    });
+
+</script>
