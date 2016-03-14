@@ -1,11 +1,1043 @@
 <!DOCTYPE html>
 <html>
-<head lang="zh-CN">
+<head lang="en">
     <meta charset="UTF-8">
     <title>在线设计工具</title>
     <link rel="stylesheet" href="css/default.css"/>
+    <script src="js/fabric-1.4.0.js"></script>
+    <script src="js/jquery.min.js"></script>
+    <script type="text/javascript">
+        var canvas;
+        var canvasStateArray = [];
+        var copy_target;
+        var clientX = 0, clientY = 0;
+        var pages = [];
+        var currPage = 0;
+        var pre_copy_target;
+
+        //保存画布状态
+        function saveCurrCanvasState(e) {
+            setTimeout(function () {
+                console.log('自动保存操作');
+                canvas.clone(function (obj) {
+
+                    if (canvasStateArray.length >= 100000) {
+                        canvasStateArray.splice(0, 10000);
+                    }
+                    canvasStateArray.push(obj);
+                    console.log(canvasStateArray);
+                });
+            }, 100);
+        }
+        $(function () {
+            $(".img").on("touchend",function(ev) {
+                console.log('touchend...');
+                var
+                        src = ev.target.src,
+                        id = ev.target.title;
+                //初始化图片
+                fabric.Image.fromURL(src, function (img) {
+                    img.scale(0.2).set({
+                        left: 300,
+                        top: 300,
+                        originX: 'center',
+                        originY: 'center',
+                        cornerSize: 25,
+                        rotatingPointOffset: 80,
+                        transformMatrix: [1, 0, 0, 1, 0, 0]
+                    });
+                    //console.log(img);
+                    img.imgid = id;
+                    //白色透明处理
+                    if ($("#cbox_whiteTrans").attr("checked")) {
+                        img.filters.push(new fabric.Image.filters.RemoveWhite());
+                        img.applyFilters(canvas.renderAll.bind(canvas));
+                    }
+
+                    canvas.add(img).setActiveObject(img);
+                    canvas.renderAll();
+                    //保存当前画布
+//            saveCurrCanvasState();
+                });
+            });
+
+            canvas = new fabric.Canvas('fabrictable');
+            canvas.setWidth(document.body.clientWidth - 5);
+            canvas.setHeight(window.innerHeight - 30);
+
+            //键盘监听
+            $(document).keydown(function (e) {
+                //键盘删除
+                if (e.keyCode == 46) {
+                    btnDel();
+                } else if (e.keyCode == 67 && e.ctrlKey) {//复制
+                    console.log('开始复制-->');
+                    var target = canvas.getActiveObject() == null ? canvas.getActiveGroup() : canvas.getActiveObject();
+                    if (target) {
+                        switch (target.type) {
+                            case 'image':
+                                //处理单个复制
+                                console.log('图片对象...');
+                                copy_target = fabric.util.object.clone(target);
+                                copy_target.set({
+                                    left: copy_target.left + 50,
+                                    top: copy_target.top + 50,
+                                    transformMatrix: [1, 0, 0, 1, 0, 0]
+                                });
+//                                canvas.add(copy_target);
+                                break;
+                            case 'group':
+                                //处理多个复制
+                                console.log('组合对象...');
+                                copy_target = fabric.util.object.clone(target);
+                                copy_target._objects = [];//清除内部元素
+                                //重新添加副本
+                                for (var i = 0; i < target.getObjects().length; i++) {
+                                    var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
+                                    copy_obj.set({
+                                        left: copy_obj.left + 50,
+                                        top: copy_obj.top + 50,
+                                        transformMatrix: [1, 0, 0, 1, 0, 0]
+                                    });
+                                    copy_target._objects.push(copy_obj);
+                                }
+                                copy_target.set({
+
+                                    transformMatrix: [1, 0, 0, 1, 0, 0]
+                                });
+//                                canvas.add(copy_target);
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                    console.log('<--复制完成');
+                } else if (e.keyCode == 86 && e.ctrlKey) {//粘贴
+                    console.log('粘贴')
+                    if (copy_target) {
+                        var copy_target_bak = fabric.util.object.clone(copy_target);
+                        copy_target_bak.set({
+                            left: copy_target.left + 15,
+                            top: copy_target.top + 15,
+                            active: false
+                        });
+                        if (clientX != 0 && clientY != 0) {
+                            copy_target_bak.set({
+                                left: clientX,
+                                top: clientY
+                            });
+                            clientX = clientY = 0;
+                        } else if (pre_copy_target) {
+                            copy_target_bak.set({
+                                left: pre_copy_target.left + 15,
+                                top: pre_copy_target.top + 15
+                            });
+                        }
+                        canvas.add(copy_target_bak);
+                        pre_copy_target = copy_target_bak;
+//                        copy_target = null;
+                        canvas.renderAll();
+                    }
+                } else if (e.keyCode == 90 && e.ctrlKey) {//撤销
+                    if (!canvasStateArray) return;
+                    var obj = canvasStateArray.pop();
+                    if (obj) {
+                        canvas.clear();
+                        for (var i = 0; i < obj.getObjects().length; i++) {
+                            var obj_item = obj.getObjects()[i];
+                            obj_item.set({
+                                transformMatrix: [1, 0, 0, 1, 0, 0]
+                            });
+                            canvas.add(obj_item).setActiveObject(obj_item);
+                        }
+                        canvas.renderAll();
+                    }
+                }
+            });
+            $(document).click(function (e) {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            });
+            $(".transformMatrix_item").change(function () {
+                if (canvas.getActiveObject()) {
+                    var transformMatrixArray = [];
+                    var a = $("#transformMatrix_item_a").val();
+                    var b = $("#transformMatrix_item_b").val();
+                    var c = $("#transformMatrix_item_c").val();
+                    var d = $("#transformMatrix_item_d").val();
+                    var tx = $("#transformMatrix_item_tx").val();
+                    var ty = $("#transformMatrix_item_ty").val();
+                    transformMatrixArray.push(a, b, c, d, tx, ty);
+                    console.log('改变了：' + transformMatrixArray);
+                    canvas.getActiveObject().set({
+                        transformMatrix: transformMatrixArray
+                    });
+                    canvas.renderAll();
+                }
+            });
+            var removeWhiteFilter;
+            $("#cbox_whiteTrans").change(function () {
+                if ($(this).attr('checked')) {
+                    $(this).removeAttr('checked');
+                } else {
+                    $(this).attr('checked', 'checked');
+                    if (canvas.getActiveObject() != null) {
+                        //保存当前画布
+                        saveCurrCanvasState();
+                        if (removeWhiteFilter == null) removeWhiteFilter = new fabric.Image.filters.RemoveWhite();
+                        canvas.getActiveObject().filters.push(removeWhiteFilter);
+                        canvas.getActiveObject().applyFilters(canvas.renderAll.bind(canvas));
+                    }
+                }
+                console.log($(this).attr('checked'));
+            });
+            $(document).bind("contextmenu", function () {
+                return false;
+            });//屏蔽右键
+
+
+            //初始化图片
+//            fabric.Image.fromURL('images/pics/s10.jpg', function (img) {
+//                img.scale(0.5).set({
+//                    left: 100,
+//                    top: 100,
+//                    angle: -15,
+//                    transformMatrix: [1, 0, 0, 1, 0, 0]
+//                });
+//                canvas.add(img).setActiveObject(img);
+//            });
+//            fabric.Image.fromURL('images/pics/s12.jpg', function (img) {
+//                img.scale(0.5).set({
+//                    left: 300,
+//                    top: 100,
+//                    angle: -15,
+//                    transformMatrix: [1, 0, 0, 1, 0, 0]
+//                });
+//                canvas.add(img).setActiveObject(img);
+//            });
+
+
+            //初始化组
+//            var group = new fabric.Group();
+//            fabric.Image.fromURL('images/pics/s13.jpg', function (img) {
+//                img.scale(0.5).set({
+//                    left: 100,
+//                    top: 100,
+//                    angle: 15,
+//                    transformMatrix: [1, 0, 0, 1, 0, 0]
+//                });
+//                group.addWithUpdate(img);
+//                fabric.Image.fromURL('images/pics/s14.jpg', function (img) {
+//                    img.scale(0.5).set({
+//                        left: 300,
+//                        top: 100,
+//                        angle: 15
+//                    });
+//                    group.addWithUpdate(img);
+//                    //添加到界面签才设置相关属性
+//                    group.set({
+//                        left: 800,
+//                        top: 100,
+//                        transformMatrix: [1, 0, 0, 1, 0, 0]
+//                    });
+//                    canvas.add(group);
+//                });
+//            });
+
+
+            //事件处理
+            //新建
+            $("#btn_new").click(function () {
+                console.log('新建');
+                var jsonstr = prompt('请输入JSON');
+                if (jsonstr) {
+                    var jsonobj = JSON.parse(jsonstr);
+                    if (jsonobj.type == 'image') {//处理单文件
+                        fabric.Image.fromObject(jsonobj, function (obj) {
+                            obj.set({
+                                transformMatrix: [1, 0, 0, 1, 0, 0]
+                            });
+                            canvas.add(obj).setActiveObject(obj);
+                            canvas.renderAll();
+                        });
+                    } else if (jsonobj.type == 'group') {//处理组
+                        fabric.Group.fromObject(jsonobj, function (target) {
+                            var copy_target = fabric.util.object.clone(target);
+                            copy_target._objects = [];//清除内部元素
+                            //重新添加副本
+                            for (var i = 0; i < target.getObjects().length; i++) {
+                                var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
+                                copy_obj.set({
+                                    transformMatrix: [1, 0, 0, 1, 0, 0]
+                                });
+                                copy_target._objects.push(copy_obj);
+                            }
+                            copy_target.set({
+                                transformMatrix: [1, 0, 0, 1, 0, 0]
+                            });
+                            canvas.add(copy_target);
+                            canvas.renderAll();
+                        });
+                    }
+                }
+            });
+            var initinterval;
+
+            //打开
+            $("#btn_open").click(function () {
+                console.log('打开');
+                var json = prompt('请输入的数据JSON');
+                if (json) {
+                    var pageobjs = JSON.parse(json);
+                    pages = [];
+                    currPage = 1;
+                    canvas.clear();
+                    //1.需要将字符串序列化成对应的canvas对象：canvas.clone()
+                    console.log(pageobjs);
+                    while (pageobjs.length > 0) {
+                        canvas.clone(function (canvascopy) {
+                            canvascopy.clear();
+                            var childflag = true;
+                            var canvasitem = pageobjs.pop();
+                            for (var i = 0; i < canvasitem.objects.length; i++) {
+                                var objitem = canvasitem.objects[i];
+                                objitem.canvas = canvascopy;
+                                console.log("objitem.type="+objitem.type);
+                                if(objitem.type == 'image'){
+                                    fabric.Image.fromObject(objitem, function (obj) {
+                                        obj.canvas.add(obj);
+                                    });
+                                }else if(objitem.type == 'text'){
+                                    canvascopy.add(fabric.Text.fromObject(objitem));
+                                }
+                            }
+                            pages.push(canvascopy);
+                        });
+                    }
+
+                    initinterval = setInterval(function () {
+                        console.log(pages);
+                        if (pages[pages.length - 1].getObjects().length > 0) {
+                            //执行
+                            pages.reverse();
+                            //渲染第一个页面对象到当前页面显示
+                            var cs = pages[currPage - 1];
+                            canvas.clear().renderAll();
+                            for (var i = 0; i < cs.getObjects().length; i++) {
+                                var obj_item = cs.getObjects()[i];
+                                obj_item.set({
+                                    transformMatrix: [1, 0, 0, 1, 0, 0],
+                                    active: false
+                                });
+                                canvas.add(obj_item);
+                            }
+                            canvas.renderAll();
+                            updatePageNum();
+                            //清除循环
+                            clearInterval(initinterval);
+                        }
+                    }, 200)
+                }
+
+            });
+            //保存:ok
+            $("#btn_save").click(function () {
+                console.log('保存');
+                canvas.clone(function (savecurr) {
+                    if (pages.length > 0) {
+                        pages[currPage - 1] = savecurr;
+                        var pagesjson = JSON.stringify(pages);
+                        console.log('完整的序列化JSON(从下面开始) -->');
+                        console.log(pagesjson);
+                        console.log('<-- 完整的序列化JSON(到上面为止)');
+                        alert('键盘按 F12键 可复制完整的保存JSON。点击打开按钮，输入复制的JSON即可实现反序列化。');
+                    }
+                });
+            });
+            //另存为
+            $("#btn_saveAs").click(function () {
+                if (canvas) {
+                    if (canvas.getActiveGroup()) canvas.getActiveGroup().set({active: false});
+                    if (canvas.getActiveObject()) canvas.getActiveObject().set({active: false});
+                    window.open(canvas.toDataURL(), '图片另存为');
+                }
+            });
+            //撤销
+            $("#btn_back").click(function () {
+                if (!canvasStateArray) return;
+                var obj = canvasStateArray.pop();
+                if (obj) {
+                    canvas.clear();
+                    for (var i = 0; i < obj.getObjects().length; i++) {
+                        var obj_item = obj.getObjects()[i];
+                        obj_item.set({
+                            transformMatrix: [1, 0, 0, 1, 0, 0]
+                        });
+                        canvas.add(obj_item).setActiveObject(obj_item);
+                    }
+                    canvas.renderAll();
+                }
+
+            });
+            //重做
+            $("#btn_redo").click(function () {
+                if (!canvasStateArray) return;
+                var obj = canvasStateArray[0];
+                if (obj) {
+                    canvas.clear();
+                    for (var i = 0; i < obj.getObjects().length; i++) {
+                        var obj_item = obj.getObjects()[i];
+                        obj_item.set({
+                            transformMatrix: [1, 0, 0, 1, 0, 0]
+                        });
+                        canvas.add(obj_item).setActiveObject(obj_item);
+                    }
+                    canvasStateArray = [];
+                    canvas.renderAll();
+                }
+            });
+            //删除
+            function btnDel() {
+                console.log('开始删除-->');
+                if (canvas.getActiveObject()) {
+//                    if (canvas.getActiveObject().text) {
+//                        canvas.getActiveObject().text.remove();
+//                    }
+                    canvas.remove(canvas.getActiveObject());
+
+                } else if (canvas.getActiveGroup()) {
+                    for (var i = 0; i < canvas.getActiveGroup().getObjects().length; i++) {
+                        canvas.remove(canvas.getActiveGroup().getObjects()[i]);
+                    }
+                    canvas.setActiveGroup(null);
+                }
+                canvas.renderAll();
+                console.log('<--删除完成');
+            }
+
+            $("#btn_del").click(btnDel);
+            $("#btn_cut").click(function (e) {
+                var $this = canvas.getActiveObject();
+                if(!$this) return;
+                if($this.type = 'image'){
+                    //图片
+                    console.log($this);
+                    var _maxwidth = $this.currentWidth;
+                    var _maxheight = $this.currentHeight;
+                    var $img = $('<img src="'+$this._element.currentSrc+'" alt="'+$this.imgid+'" width="'+_maxwidth+'" height="'+_maxheight+'" id="target">');
+                    $img.css({
+                        'position':'absolute',
+                        'left':$this.left-(_maxwidth/2),
+                        'top':$this.top-(_maxheight/2),
+                        'z-index':'1000'
+                    });
+                    $('body').append($img);
+//                    var dkrm = new Darkroom('#target', {
+//                        // Size options
+//                        minWidth: 100,
+//                        minHeight: 100,
+//                        maxWidth: 650,
+//                        maxHeight: 500,
+//
+//                        plugins: {
+//                            //save: false,
+//                            crop: {
+//                                quickCropKey: 67//, key "c"
+//                                //minHeight: 50,
+//                                //minWidth: 50,
+//                                //ratio: 1
+//                            }
+//                        },
+//                        init: function () {
+//                            var cropPlugin = this.getPlugin('crop');
+//                            cropPlugin.selectZone(170, 25, 300, 300);
+//                            //cropPlugin.requireFocus();
+//                        }
+//                    });
+                }
+
+            });
+            $("#btn_copy").click(function () {
+                console.log('开始复制-->');
+                var target = canvas.getActiveObject() == null ? canvas.getActiveGroup() : canvas.getActiveObject();
+                if (target) {
+                    switch (target.type) {
+                        case 'image':
+                            //处理单个复制
+                            console.log('图片对象...');
+                            var copy_target = fabric.util.object.clone(target);
+                            copy_target.set({
+                                left: copy_target.left + 15,
+                                top: copy_target.top + 15,
+                                transformMatrix: [1, 0, 0, 1, 0, 0],
+                                active: false
+                            });
+                            if (pre_copy_target) {
+                                copy_target.set({
+                                    left: pre_copy_target.left + 15,
+                                    top: pre_copy_target.top + 15
+                                });
+                            }
+                            canvas.add(copy_target);
+                            pre_copy_target = copy_target;
+                            break;
+                        case 'group':
+                            //处理多个复制
+                            console.log('组合对象...');
+                            var copy_target = fabric.util.object.clone(target);
+                            copy_target._objects = [];//清除内部元素
+                            //重新添加副本
+                            for (var i = 0; i < target.getObjects().length; i++) {
+                                var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
+                                copy_obj.set({
+                                    transformMatrix: [1, 0, 0, 1, 0, 0]
+                                });
+                                copy_target._objects.push(copy_obj);
+                            }
+                            copy_target.set({
+                                left: copy_obj.left + 15,
+                                top: copy_obj.top + 15,
+                                transformMatrix: [1, 0, 0, 1, 0, 0],
+                                active: false
+                            });
+                            if (pre_copy_target) {
+                                copy_target.set({
+                                    left: pre_copy_target.left + 15,
+                                    top: pre_copy_target.top + 15
+                                });
+                            }
+                            canvas.add(copy_target);
+                            pre_copy_target = copy_target;
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                console.log('<--复制完成');
+            });
+            $("#btn_group").click(function () {
+                console.log('开始分组-->');
+                var target = canvas.getActiveGroup();
+                if (target) {
+                    //处理多个分组
+                    console.log('组合对象...');
+                    var copy_target = fabric.util.object.clone(target);
+                    copy_target._objects = [];//清除内部元素
+                    //重新添加副本
+                    for (var i = 0; i < target.getObjects().length; i++) {
+                        var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
+                        copy_target._objects.push(copy_obj);
+                        canvas.remove(target.getObjects()[i]);
+                    }
+                    canvas.remove(target);
+
+                    copy_target.set({
+
+                        transformMatrix: [1, 0, 0, 1, 0, 0]
+                    });
+                    canvas.add(copy_target);
+                    canvas.renderAll();
+                }
+                console.log('<--分组完成');
+            });
+            $("#btn_ungroup").click(function () {
+                console.log('开始解组-->');
+                var target = canvas.getActiveObject();
+                if (target) {
+                    //处理单个解组
+                    console.log('组合对象...');
+                    //处理多个解组
+                    for (var i = 0; i < target.getObjects().length; i++) {
+
+                        var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
+                        copy_obj.set({
+                            left: copy_obj.left + target.left,
+                            top: copy_obj.top + target.top,
+                            hasControls: true,
+                            hasBorders: true,
+                            active: false,
+                            transformMatrix: [1, 0, 0, 1, 0, 0]
+                        });
+                        canvas.add(copy_obj);
+                    }
+                    canvas.remove(target);
+                    canvas.renderAll();
+                }
+                console.log('<--解组完成');
+            });
+
+            //水平镜像:ok
+            $("#btn_xMirror").click(function () {
+                if (canvas.getActiveObject()) {
+                    var obj = canvas.getActiveObject();
+                    obj.flipX = !obj.flipX;
+                } else if (canvas.getActiveGroup()) {
+                    canvas.getActiveGroup().flipX = !canvas.getActiveGroup().flipX;
+                }
+                canvas.renderAll();
+            });
+            //垂直镜像:ok
+            $("#btn_yMirror").click(function () {
+                if (canvas.getActiveObject()) {
+                    var obj = canvas.getActiveObject();
+                    obj.flipY = !obj.flipY;
+                } else if (canvas.getActiveGroup()) {
+                    canvas.getActiveGroup().flipY = !canvas.getActiveGroup().flipY;
+                }
+                canvas.renderAll();
+            });
+
+            //上层:ok
+            $("#btn_up").click(function () {//TODO 已经和下层功能对调
+                console.log(canvas.getActiveObject());
+                if (canvas.getActiveObject()) {
+                    canvas.renderAll();
+                    canvas.getActiveObject().sendBackwards(true);
+                } else if (canvas.getActiveGroup()) {
+
+                }
+            });
+            //下层:ok
+            $("#btn_down").click(function () {//TODO 已经和上层功能对调
+                if (canvas.getActiveObject()) {
+                    canvas.renderAll();
+                    canvas.getActiveObject().bringForward(true);
+                } else if (canvas.getActiveGroup()) {
+
+                }
+            });
+            //锁定
+            $("#btn_lock").click(function () {
+                if (canvas.getActiveObject()) {
+                    canvas.getActiveObject().lockMovementX = !canvas.getActiveObject().lockMovementX;
+                    canvas.getActiveObject().lockMovementY = !canvas.getActiveObject().lockMovementY;
+                    canvas.getActiveObject().lockRotation = !canvas.getActiveObject().lockRotation;
+                    canvas.getActiveObject().lockScalingFlip = !canvas.getActiveObject().lockScalingFlip;
+                    canvas.getActiveObject().lockScalingX = !canvas.getActiveObject().lockScalingX;
+                    canvas.getActiveObject().lockScalingY = !canvas.getActiveObject().lockScalingY;
+                } else if (canvas.getActiveGroup()) {
+                    for (var i = 0; i < canvas.getActiveGroup().getObjects().length; i++) {
+                        canvas.getActiveGroup().getObjects()[i].lockMovementX = !canvas.getActiveGroup().getObjects()[i].lockMovementX;
+                        canvas.getActiveGroup().getObjects()[i].lockMovementY = !canvas.getActiveGroup().getObjects()[i].lockMovementY;
+                        canvas.getActiveGroup().getObjects()[i].lockRotation = !canvas.getActiveGroup().getObjects()[i].lockRotation;
+                        canvas.getActiveGroup().getObjects()[i].lockScalingFlip = !canvas.getActiveGroup().getObjects()[i].lockScalingFlip;
+                        canvas.getActiveGroup().getObjects()[i].lockScalingX = !canvas.getActiveGroup().getObjects()[i].lockScalingX;
+                        canvas.getActiveGroup().getObjects()[i].lockScalingY = !canvas.getActiveGroup().getObjects()[i].lockScalingY;
+                    }
+                }
+                canvas.renderAll();
+            });
+            //文字
+            $("#btn_word").click(function () {
+                if (canvas.getActiveObject()) {
+                    var $obj = canvas.getActiveObject();
+                    var historyText, historySize, historyFamily, historyColor;
+                    if ($obj.text) {
+                        historyText = $obj.text.text();
+                        historySize = $obj.text.css('font-size');
+                        historyFamily = $obj.text.css('font-family');
+                        historyColor = $obj.text.css('color');
+                    } else {
+                        historyText = '我是备注信息';
+                        historySize = '12px';
+                        historyFamily = '宋体';
+                        historyColor = '#ff0000';
+                    }
+                    var result = prompt("请输入字体、大小、颜色、备注信息，按英文感叹号分割\n如：宋体!12px!#ff0000!我是备注信息", historyFamily + "!" + historySize + "!" + historyColor + "!" + historyText);
+                    if (result) {
+                        var resultArray = result.split('!');
+                        if (resultArray.length == 4) {
+                            var text;
+                            if ($obj.text) {
+                                text = $obj.text;
+                            } else {
+                                text = $('<span></span>');
+                                $obj.text = text;
+                            }
+                            text.css({
+                                'position': 'absolute',
+                                'left': $obj.left - $obj.currentWidth / 2 + 10,
+                                'top': $obj.top - $obj.currentHeight / 2 + 10,
+                                'font': 'normal ' + resultArray[1] + ' ' + resultArray[0],
+                                'color': resultArray[2]
+                            });
+                            text.text(resultArray[3]);
+                            $('body').append(text);
+                            $obj.on('moving', function (evt) {
+                                text.css({
+                                    'left': $obj.left - $obj.currentWidth / 2 + 10,
+                                    'top': $obj.top - $obj.currentHeight / 2 + 10
+                                });
+                            });
+                        } else {
+                            alert('你输入的格式不正确，请重试');
+                        }
+                    }
+                }
+            });
+            //形变
+            $("#btn_change").click(function () {
+
+
+            });
+            var area_action = false;
+            //区域
+            $("#btn_area").click(function () {
+                var btn_area = $(this).children();
+                if(btn_area.attr('src') == 'images/area_action.png'){
+                    btn_area.attr('src','images/area.png');
+                    btn_area.attr('action','false');
+                    area_action = false;
+                }else{
+                    btn_area.attr('src','images/area_action.png');
+                    btn_area.attr('action','true');
+                    area_action = true;
+                }
+            });
+            //形变
+            $("#btn_getimgid").click(function () {
+                if (canvas.getActiveObject()) {
+                    alert('当前图片的ID为：' + canvas.getActiveObject().imgid);
+                } else {
+                    alert('请选择一个图片对象！');
+                }
+
+            });
+            canvas.on('object:modified', saveCurrCanvasState);
+
+
+            //按钮效果
+            var left_btn_width = 25;
+            var left_btn_height = 25;
+            $('.left_btn').hover(function () {
+                $(this).animate({width: left_btn_width + 4, height: left_btn_height + 4}, 100);
+            }, function () {
+                $(this).animate({width: left_btn_width, height: left_btn_height}, 100);
+            });
+            var wrapper_top_btn_width = 20;
+            var wrapper_top_btn_height = 20;
+            $('.wrapper_top_btn').hover(function () {
+                $(this).children('img').animate({
+                    width: wrapper_top_btn_width + 4,
+                    height: wrapper_top_btn_height + 4
+                }, 100);
+            }, function () {
+                $(this).children('img').animate({width: wrapper_top_btn_width, height: wrapper_top_btn_height}, 100);
+            });
+
+            var bottom_btn_width = 20;
+            var bottom_btn_height = 20;
+            $('.bottom_btn').hover(function () {
+                $(this).children('img').animate({width: bottom_btn_width + 4, height: bottom_btn_height + 4}, 100);
+            }, function () {
+                $(this).children('img').animate({width: bottom_btn_width, height: bottom_btn_height}, 100);
+            });
+
+            //页面操作s
+            function updatePageNum() {
+                $('#curr_page').text(currPage);
+                $('#all_page').text(pages.length);
+            }
+
+            $("#btn_page_del").click(function () {
+                console.log('删除页面');
+                if (pages.length == 1) {
+                    alert('至少要有一个页面！');
+                    return;
+                }
+                pages[currPage - 1] = null;//删除当前页
+                //将后面的元素往前移动
+                for (var i = currPage - 1; i < pages.length - 1; i++) {
+                    pages[i] = pages[i + 1];
+                }
+                pages.pop();//请空最后一个元素的值
+                if (currPage > 1) {
+                    currPage--;
+                }
+                updatePageNum();
+                console.log(pages);
+
+                var cs = pages[currPage - 1];
+                canvas.clear().renderAll();
+                for (var i = 0; i < cs.getObjects().length; i++) {
+                    var obj_item = cs.getObjects()[i];
+                    obj_item.set({
+                        transformMatrix: [1, 0, 0, 1, 0, 0],
+                        active: false
+                    });
+                    canvas.add(obj_item);
+                }
+                canvas.renderAll();
+                updatePageNum();
+            });
+            var i = 1;
+            $("#btn_page_add").click(function () {
+                canvas.clone(function (obj) {
+                    if (pages.length >= 100000) {
+                        pages.splice(0, 10000);
+                    }
+                    if (pages.length > 0) {
+                        pages[currPage - 1] = obj;//保存当前页
+                        canvas.clone(function (savecurr) {
+                            console.log(i++);
+                            savecurr.clear();//请空所有对象
+                            pages.push(savecurr);//新增一个页面
+
+                            currPage = pages.length;
+                            updatePageNum();
+                            canvas.clear().renderAll();
+                        });
+                    }
+                });
+            });
+            $("#btn_page_up").click(function () {
+                if (currPage > 1) {
+                    console.log('上页');
+                    canvas.clone(function (savecurr) {
+                        if (pages.length > 0) {
+                            pages[currPage - 1] = savecurr;//保存当前
+                            currPage--;
+                            var cs = pages[currPage - 1];
+                            canvas.clear().renderAll();
+                            for (var i = 0; i < cs.getObjects().length; i++) {
+                                var obj_item = cs.getObjects()[i];
+                                obj_item.set({
+                                    transformMatrix: [1, 0, 0, 1, 0, 0],
+                                    active: false
+                                });
+                                canvas.add(obj_item);
+                            }
+                            canvas.renderAll();
+                            updatePageNum();
+                        }
+                    });
+                }
+            });
+            $("#btn_page_down").click(function () {
+                console.log('下页');
+                if (currPage < pages.length) {
+                    canvas.clone(function (savecurr) {
+                        if (pages.length > 0) {
+                            pages[currPage - 1] = savecurr;//保存当前
+                            currPage++;//下一页
+                            var cs = pages[currPage - 1];
+                            canvas.clear().renderAll();
+                            for (var i = 0; i < cs.getObjects().length; i++) {
+                                var obj_item = cs.getObjects()[i];
+                                obj_item.set({
+                                    transformMatrix: [1, 0, 0, 1, 0, 0],
+                                    active: false
+                                });
+                                canvas.add(obj_item);
+                            }
+                            canvas.renderAll();
+                            updatePageNum();
+                        }
+                    });
+                }
+            });
+            function initPage() {
+                setTimeout(function () {
+                    canvas.clone(function (obj) {
+                        if (pages.length >= 100000) {
+                            pages.splice(0, 10000);
+                        }
+                        for (var i = 0; i < pages.length; i++) {
+                            if (pages[i] == obj) return;
+                        }
+                        pages.push(obj);
+                        currPage++;
+                        updatePageNum();
+                        if (pages.length > 1) {
+                            pages.pop();
+                            currPage--;
+                            updatePageNum();
+                        }
+                    });
+                }, 100);
+            }
+
+            initPage();
+
+            var startX, startY;
+            canvas.on('mouse:down', function (obj) {
+                console.log('鼠标按下-->');
+                startX = obj.e.clientX;
+                startY = obj.e.clientY;
+                console.log('<--鼠标按下');
+            });
+            canvas.on('mouse:up', function (obj) {
+                console.log('鼠标松开-->');
+                var width = obj.e.clientX > startX ? obj.e.clientX - startX : startX - obj.e.clientX;
+                var height = obj.e.clientY > startY ? obj.e.clientY - startY : startY - obj.e.clientY;
+                if (area_action == true && !canvas.getActiveObject() && width > 10 && height > 10) {
+                    var $editpanel = $("#editpanel");
+                    $editpanel.children('[name=width]').val(width);
+                    $editpanel.children('[name=height]').val(height);
+                    $editpanel.children('[name=left]').val(obj.e.clientX > startX ? startX : obj.e.clientX);
+                    $editpanel.children('[name=top]').val(obj.e.clientY > startY ? startY : obj.e.clientY);
+                    $editpanel.css({
+                        'display': 'block',
+                        'left': parseInt($editpanel.children('[name=left]').val()),
+                        'top': parseInt($editpanel.children('[name=top]').val())
+                    });
+                    startX = 0, startY = 0;
+                }
+                console.log('<--鼠标松开');
+            });
+
+            <!-- 文字编辑面板 -->
+            var starttime;
+            function editpanelToText() {
+                //编辑面板转文本
+                var $editpanel = $("#editpanel");
+                var _text = $editpanel.children('[name=text]').val() ? $editpanel.children('[name=text]').val() : '请输入备注信息';
+                var _fontFamily = $editpanel.children('[name=fontFamily]').val() ? $editpanel.children('[name=fontFamily]').val() : '宋体';
+                var _fontSize = $editpanel.children('[id=fontSize]').children('[name=fontSize]').val() ? $editpanel.children('[id=fontSize]').children('[name=fontSize]').val() : 12;
+                var _fontFill = $editpanel.children('[name=fontFill]').val() ? $editpanel.children('[name=fontFill]').val() : 'rgb(0,0,0)';
+                var _fontStyle = $editpanel.children('[name=fontStyle]').val() ? $editpanel.children('[name=fontStyle]').val() : 'normal';
+                var _fontWeight = $editpanel.children('[name=fontWeight]').val() ? $editpanel.children('[name=fontWeight]').val() : 'normal';
+                var _textAlign = $editpanel.children('[name=textAlign]').val() ? $editpanel.children('[name=textAlign]').val() : 'left';
+                var _textDecoration = $editpanel.children('[name=textDecoration]').val();
+                var _width = $editpanel.children('[name=width]').val();
+                var _height = $editpanel.children('[name=height]').val();
+                var _left = $editpanel.children('[name=left]').val();
+                var _top = $editpanel.children('[name=top]').val();
+
+                var remardtext = new fabric.Text(_text, {
+                    width: parseInt(_width),
+                    height: parseInt(_height),
+                    top: parseInt(_top),
+                    left: parseInt(_left),
+                    fill: _fontFill,
+                    fontFamily: _fontFamily,
+                    fontSize: _fontSize,
+                    fontStyle: _fontStyle,
+                    fontWeight: _fontWeight,
+                    textAlign: _textAlign,
+                    textDecoration: _textDecoration
+                });
+
+                remardtext.on('mouseup', function (obj) {
+                    if(starttime){
+                        var endtime = new Date().getTime();
+                        console.log(endtime-starttime);
+                        if(endtime-starttime <= 300){
+                            console.log('双击事件');
+//                            alert('双击事件');
+                            var $editpanel = $("#editpanel");
+                            var textobj = fabric.util.object.clone(canvas.getActiveObject());
+                            $editpanel.children('[name=width]').val(textobj.width);
+                            $editpanel.children('[name=height]').val(textobj.height);
+                            $editpanel.children('[name=left]').val(textobj.left);
+                            $editpanel.children('[name=top]').val(textobj.top);
+                            $editpanel.css({
+                                'display': 'block',
+                                'left': textobj.left,
+                                'top': textobj.top
+                            });
+                            textToEditpanel(textobj);
+                            btnDel();
+                        }
+                        starttime = endtime;
+                    }else{
+                        starttime = new Date().getTime();
+                    }
+                });
+                canvas.add(remardtext);
+                resetEditpanel();
+            }
+
+            function resetEditpanel() {
+                var $editpanel = $("#editpanel");
+                $editpanel.children('[name=text]').val('');
+                $editpanel.children('[name=fontFamily]').val('');
+                $editpanel.children('[id=fontSize]').children('[name=fontSize]').val('');
+                $editpanel.children('[name=fontFill]').val('');
+                $editpanel.children('[name=fontStyle]').val('');
+                $editpanel.children('[name=fontWeight]').val('');
+                $editpanel.children('[name=textAlign]').val('');
+                $editpanel.children('[name=textDecoration]').val('');
+                $editpanel.children('[name=width]').val('');
+                $editpanel.children('[name=height]').val('');
+                $editpanel.children('[name=left]').val('');
+                $editpanel.children('[name=top]').val('');
+                $editpanel.css({
+                    'display': 'none',
+                    'left': '0',
+                    'top': '0'
+                });
+            }
+
+            function textToEditpanel(textobj) {
+                //文本转编辑面板
+                var $editpanel = $("#editpanel");
+                $editpanel.children('[name=text]').val(textobj.text);
+                $editpanel.children('[name=fontFamily]').val(textobj.fontFamily);
+                $editpanel.children('[id=fontSize]').children('[name=fontSize]').val(textobj.fontSize);
+                $editpanel.children('[name=fontFill]').val(textobj.fill);
+                $editpanel.children('[name=fontStyle]').val(textobj.fontStyle);
+                $editpanel.children('[name=fontWeight]').val(textobj.fontWeight);
+                $editpanel.children('[name=textAlign]').val(textobj.textAlign);
+                $editpanel.children('[name=textDecoration]').val(textobj.textDecoration);
+                $editpanel.children('[name=width]').val(textobj.width);
+                $editpanel.children('[name=height]').val(textobj.height);
+                $editpanel.children('[name=left]').val(textobj.left);
+                $editpanel.children('[name=top]').val(textobj.top);
+            }
+
+            $("#fontFill").spectrum({
+                allowEmpty: true,
+                color: "#ECC",
+                showInput: true,
+                containerClassName: "full-spectrum",
+                showInitial: true,
+                showPalette: true,
+                showSelectionPalette: true,
+                showAlpha: true,
+                maxPaletteSize: 10,
+                preferredFormat: "hex",
+                localStorageKey: "spectrum.demo",
+                move: function (color) {
+//                    updateBorders(color);
+                },
+                show: function () {
+
+                },
+                beforeShow: function () {
+
+                },
+                hide: function (color) {
+//                    updateBorders(color);
+                },
+
+                palette: [
+                    ["rgb(0, 0, 0)", "rgb(67, 67, 67)", "rgb(102, 102, 102)", /*"rgb(153, 153, 153)","rgb(183, 183, 183)",*/
+                        "rgb(204, 204, 204)", "rgb(217, 217, 217)", /*"rgb(239, 239, 239)", "rgb(243, 243, 243)",*/ "rgb(255, 255, 255)"],
+                    ["rgb(152, 0, 0)", "rgb(255, 0, 0)", "rgb(255, 153, 0)", "rgb(255, 255, 0)", "rgb(0, 255, 0)",
+                        "rgb(0, 255, 255)", "rgb(74, 134, 232)", "rgb(0, 0, 255)", "rgb(153, 0, 255)", "rgb(255, 0, 255)"],
+                    ["rgb(230, 184, 175)", "rgb(244, 204, 204)", "rgb(252, 229, 205)", "rgb(255, 242, 204)", "rgb(217, 234, 211)",
+                        "rgb(208, 224, 227)", "rgb(201, 218, 248)", "rgb(207, 226, 243)", "rgb(217, 210, 233)", "rgb(234, 209, 220)",
+                        "rgb(221, 126, 107)", "rgb(234, 153, 153)", "rgb(249, 203, 156)", "rgb(255, 229, 153)", "rgb(182, 215, 168)",
+                        "rgb(162, 196, 201)", "rgb(164, 194, 244)", "rgb(159, 197, 232)", "rgb(180, 167, 214)", "rgb(213, 166, 189)",
+                        "rgb(204, 65, 37)", "rgb(224, 102, 102)", "rgb(246, 178, 107)", "rgb(255, 217, 102)", "rgb(147, 196, 125)",
+                        "rgb(118, 165, 175)", "rgb(109, 158, 235)", "rgb(111, 168, 220)", "rgb(142, 124, 195)", "rgb(194, 123, 160)",
+                        "rgb(166, 28, 0)", "rgb(204, 0, 0)", "rgb(230, 145, 56)", "rgb(241, 194, 50)", "rgb(106, 168, 79)",
+                        "rgb(69, 129, 142)", "rgb(60, 120, 216)", "rgb(61, 133, 198)", "rgb(103, 78, 167)", "rgb(166, 77, 121)",
+                        /*"rgb(133, 32, 12)", "rgb(153, 0, 0)", "rgb(180, 95, 6)", "rgb(191, 144, 0)", "rgb(56, 118, 29)",
+                         "rgb(19, 79, 92)", "rgb(17, 85, 204)", "rgb(11, 83, 148)", "rgb(53, 28, 117)", "rgb(116, 27, 71)",*/
+                        "rgb(91, 15, 0)", "rgb(102, 0, 0)", "rgb(120, 63, 4)", "rgb(127, 96, 0)", "rgb(39, 78, 19)",
+                        "rgb(12, 52, 61)", "rgb(28, 69, 135)", "rgb(7, 55, 99)", "rgb(32, 18, 77)", "rgb(76, 17, 48)"]
+                ]
+            });
+            $("#editpanelToText").click(function () {
+                editpanelToText();
+            });
+        });
+    </script>
 </head>
 <body>
+
 <script type="text/javascript">
     //拖放经过时
     function allowDrop(ev) {
@@ -13,36 +1045,41 @@
     }
     //拖
     function drag(ev) {
-        ev.dataTransfer.setData("Text", ev.target.id);
+        ev.dataTransfer.setData("Text", ev.target.src+'|||'+ev.target.title);
+
         saveCurrCanvasState();
     }
     //放
-    function drop(ev) {
+    function drop(ev, source) {
         ev.preventDefault();
         var data = ev.dataTransfer.getData("Text");
+        var splits = data.split('|||');
+        var imgid = splits[1];
         //初始化图片
-        fabric.Image.fromURL(data, function (img) {
+        fabric.Image.fromURL(splits[0], function (img) {
             img.scale(0.5).set({
-                left: ev.x,
-                top: ev.y,
-                angle: -5,
+                left: ev.clientX,
+                top: ev.clientY,
                 originX: 'center',
-                originY: 'center'
+                originY: 'center',
+                transformMatrix: [1, 0, 0, 1, 0, 0]
             });
+            img.imgid = imgid;
             //白色透明处理
             if ($("#cbox_whiteTrans").attr("checked")) {
                 img.filters.push(new fabric.Image.filters.RemoveWhite());
                 img.applyFilters(canvas.renderAll.bind(canvas));
             }
+
             canvas.add(img).setActiveObject(img);
             canvas.renderAll();
             //保存当前画布
-            saveCurrCanvasState();
+//            saveCurrCanvasState();
         });
     }
 </script>
 <!-- 画布区域 -->
-<div ondrop="drop(event)" ondragover="allowDrop(event)" id="canvas_container">
+<div ondrop="drop(event)" ondragend="drop(event)" ondragover="allowDrop(event)" id="canvas_container">
     <canvas id="fabrictable"></canvas>
 </div>
 <!-- 顶部横排按钮 -->
@@ -57,7 +1094,10 @@
             class="label">另存为</span></span><span class="vline"></span>
     <span class="wrapper_top_btn" id="btn_back"><img src="images/back.png" class="btn top_btn"/><span class="label">撤销</span></span><span
         class="vline"></span>
-    <span class="wrapper_top_btn" id="btn_redo"><img src="images/redo.png" class="btn top_btn"/><span class="label">重做</span></span>
+    <span class="wrapper_top_btn" id="btn_redo"><img src="images/redo.png" class="btn top_btn"/><span class="label">重做</span></span><span
+        class="vline"></span>
+    <span class="wrapper_top_btn" id="btn_getimgid"><img src="images/redo.png" class="btn top_btn"/><span
+            class="label">获取当前图片ID</span></span>
 </div>
 <!-- 左侧竖排按钮 -->
 <div id="left_btns">
@@ -65,13 +1105,15 @@
         class="hline"></span>
     <span class="wrapper_left_btn" id="btn_copy"><img src="images/copy.png" class="btn left_btn"/></span><span
         class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_cut"><img src="images/cut.png" class="btn left_btn"/></span><span
+        class="hline"></span>
     <span class="wrapper_left_btn" id="btn_xMirror"><img src="images/xMirror.png" class="btn left_btn"/></span><span
         class="hline"></span>
     <span class="wrapper_left_btn" id="btn_yMirror"><img src="images/yMirror.png" class="btn left_btn"/></span><span
         class="hline"></span>
-    <span class="wrapper_left_btn" id="btn_up"><img src="images/down.png" class="btn left_btn"/></span><span
-        class="hline"></span>
     <span class="wrapper_left_btn" id="btn_down"><img src="images/up.png" class="btn left_btn"/></span><span
+        class="hline"></span>
+    <span class="wrapper_left_btn" id="btn_up"><img src="images/down.png" class="btn left_btn"/></span><span
         class="hline"></span>
     <span class="wrapper_left_btn" id="btn_group"><img src="images/group.png" class="btn left_btn"/></span><span
         class="hline"></span>
@@ -81,36 +1123,33 @@
         class="hline"></span>
     <span class="wrapper_left_btn" id="btn_change"><img src="images/change.png" class="btn left_btn"/></span><span
         class="hline"></span>
-    <span class="wrapper_left_btn" id="btn_line"><img src="images/line.png" class="btn left_btn"/></span><span
+    <span class="wrapper_left_btn" id="btn_word"><img src="images/word.png" class="btn left_btn"/></span><span
         class="hline"></span>
     <span class="wrapper_left_btn" id="btn_area"><img src="images/area.png" class="btn left_btn"/></span>
 </div>
 <!-- 右侧图片区域u -->
 <div id="imgs">
-    <img class="img" src="images/pics/s10.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s11.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s12.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s13.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s14.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s15.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s16.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s17.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s18.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s19.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s20.jpg" draggable="true" ondragstart="drag(event)"/>
-    <img class="img" src="images/pics/s21.jpg" draggable="true" ondragstart="drag(event)"/>
+    <img class="img" src="images/pics/1.jpg" draggable="true" ondragstart="drag(event)" title="1001"/>
+    <img class="img" src="images/pics/2.jpg" draggable="true" ondragstart="drag(event)" title="1002"/>
+    <img class="img" src="images/pics/3.jpg" draggable="true" ondragstart="drag(event)" title="1003"/>
+    <img class="img" src="images/pics/4.jpg" draggable="true" ondragstart="drag(event)" title="1004"/>
+    <img class="img" src="images/pics/5.jpg" draggable="true" ondragstart="drag(event)" title="1005"/>
+    <img class="img" src="images/pics/6.jpg" draggable="true" ondragstart="drag(event)" title="1006"/>
+    <img class="img" src="images/pics/7.jpg" draggable="true" ondragstart="drag(event)" title="1007"/>
+    <img class="img" src="images/pics/8.jpg" draggable="true" ondragstart="drag(event)" title="1008"/>
+    <img class="img" src="images/pics/9.png" draggable="true" ondragstart="drag(event)" title="1009"/>
 </div>
 <!-- 选项区 -->
 <div id="optional">
     <span class="optional_item">
         <span class="controls" id="lbl_whiteTrans">变形矩阵</span>
         <span class="controls">
-            <input type="number" value="1" step="0.1" id="transformMatrix_item_a" class="transformMatrix_item">
-            <input type="number" value="0" step="0.1" id="transformMatrix_item_b" class="transformMatrix_item">
-            <input type="number" value="0" step="0.1" id="transformMatrix_item_c" class="transformMatrix_item"><br/>
-            <input type="number" value="1" step="0.1" id="transformMatrix_item_d" class="transformMatrix_item">
-            <input type="number" value="0" step="0.1" id="transformMatrix_item_tx" class="transformMatrix_item">
-            <input type="number" value="0" step="0.1" id="transformMatrix_item_ty" class="transformMatrix_item">
+            <span style="display:inline-block; width: 10px;">a</span><input type="number" value="1" step="0.1" id="transformMatrix_item_a" class="transformMatrix_item">
+            <span style="display:inline-block; width: 10px;">b</span><input type="number" value="0" step="0.1" id="transformMatrix_item_b" class="transformMatrix_item">
+            <span style="display:inline-block; width: 10px;">c</span><input type="number" value="0" step="0.1" id="transformMatrix_item_c" class="transformMatrix_item"><br/>
+            <span style="display:inline-block; width: 10px;">d</span><input type="number" value="1" step="0.1" id="transformMatrix_item_d" class="transformMatrix_item">
+            <span style="display:inline-block; width: 10px;">tx</span><input type="number" value="0" step="10" id="transformMatrix_item_tx" class="transformMatrix_item">
+            <span style="display:inline-block; width: 10px;">ty</span><input type="number" value="0" step="10" id="transformMatrix_item_ty" class="transformMatrix_item">
         </span>
     </span>
     <span class="optional_item">
@@ -118,359 +1157,333 @@
         <span class="controls">白色透明处理</span>
     </span>
 </div>
+
+<!-- 下方右侧横排按钮 -->
+<div id="right_bottom_btns">
+    <span class="btn bottom_btn" id="btn_page_del"><img src="images/page_del.png" class="btn"/></span><span
+        class="vline"></span>
+    <span class="btn bottom_btn" id="btn_page_add"><img src="images/page_add.png" class="btn"/></span><span
+        class="vline"></span>
+    <span class="btn bottom_btn" id="btn_page_up"><img src="images/page_up.png" class="btn"/></span><span
+        class="vline"></span>
+    <span class="btn bottom_btn" id="btn_page_down"><img src="images/page_down.png" class="btn"/></span><span
+        class="vline"></span>
+    <span class="btn bottom_btn" id="curr_page">0</span>
+    <span>/</span>
+    <span class="btn bottom_btn" id="all_page">0</span>
+</div>
+
+<!-- 编辑面板 -->
+<div style="position:absolute; left:0; top:0; background-color:#ffffff; display: none; width:350px;border:1px solid #4a86e8; border-radius: 5px; text-align: center; padding: 5px;"
+     id="editpanel">
+    <!--<input type="text" name="text" size="52" value="请输入备注信息"/><br/>-->
+
+    <div style="position:relative; display: inline-block;" id="fontSize">
+        <span style="margin-left:100px;width:18px;overflow:hidden;">
+            <select style="width:100px;margin-left:-100px"
+                    onchange="$(this).parent().siblings('[name=fontSize]').val($(this).val())" )>
+                <option value="10">10</option>
+                <option value="12">12</option>
+                <option value="14">14</option>
+                <option value="16">16</option>
+                <option value="20">20</option>
+            </select>
+        </span>
+        <input name="fontSize" placeholder="字体大小" style="width:80px;position:absolute;left:0px;" value="12">
+    </div>
+    <select name="fontFamily" value="Arial">
+        <option value="">选择字体</option>
+        <option value="Abyssinica SIL">Abyssinica SIL</option>
+        <option value="Aharoni">Aharoni</option>
+        <option value="Aldhabi">Aldhabi</option>
+        <option value="Andalus">Andalus</option>
+        <option value="Angsana New">Angsana New</option>
+        <option value="AngsanaUPC">AngsanaUPC</option>
+        <option value="Aparajita">Aparajita</option>
+        <option value="AR PL UMing CN">AR PL UMing CN</option>
+        <option value="AR PL UMing HK">AR PL UMing HK</option>
+        <option value="AR PL UMing TW">AR PL UMing TW</option>
+        <option value="AR PL UMing TW MBE">AR PL UMing TW MBE</option>
+        <option value="Arabic Typesetting">Arabic Typesetting</option>
+        <option value="Arial">Arial</option>
+        <option value="Arial Black">Arial Black</option>
+        <option value="Arial Unicode MS">Arial Unicode MS</option>
+        <option value="Batang">Batang</option>
+        <option value="BatangChe">BatangChe</option>
+        <option value="Bitstream Charter">Bitstream Charter</option>
+        <option value="Browallia New">Browallia New</option>
+        <option value="BrowalliaUPC">BrowalliaUPC</option>
+        <option value="Caladea">Caladea</option>
+        <option value="Calibri">Calibri</option>
+        <option value="Calibri Light">Calibri Light</option>
+        <option value="Cambria">Cambria</option>
+        <option value="Cambria Math">Cambria Math</option>
+        <option value="Candara">Candara</option>
+        <option value="Cantarell">Cantarell</option>
+        <option value="Carlito">Carlito</option>
+        <option value="Century">Century</option>
+        <option value="Century Schoolbook L">Century Schoolbook L</option>
+        <option value="Comic Sans MS">Comic Sans MS</option>
+        <option value="Consolas">Consolas</option>
+        <option value="Constantia">Constantia</option>
+        <option value="Corbel">Corbel</option>
+        <option value="Cordia New">Cordia New</option>
+        <option value="CordiaUPC">CordiaUPC</option>
+        <option value="Courier 10 Pitch">Courier 10 Pitch</option>
+        <option value="Courier New">Courier New</option>
+        <option value="Cursor">Cursor</option>
+        <option value="DaunPenh">DaunPenh</option>
+        <option value="David">David</option>
+        <option value="DejaVu Sans">DejaVu Sans</option>
+        <option value="DejaVu Sans Condensed">DejaVu Sans Condensed</option>
+        <option value="DejaVu Sans Light">DejaVu Sans Light</option>
+        <option value="DejaVu Sans Mono">DejaVu Sans Mono</option>
+        <option value="DejaVu Serif">DejaVu Serif</option>
+        <option value="DejaVu Serif Condensed">DejaVu Serif Condensed</option>
+        <option value="DFKai-SB">DFKai-SB</option>
+        <option value="Dialog">Dialog</option>
+        <option value="DialogInput">DialogInput</option>
+        <option value="DilleniaUPC">DilleniaUPC</option>
+        <option value="Dingbats">Dingbats</option>
+        <option value="DokChampa">DokChampa</option>
+        <option value="Dotum">Dotum</option>
+        <option value="DotumChe">DotumChe</option>
+        <option value="Ebrima">Ebrima</option>
+        <option value="Estrangelo Edessa">Estrangelo Edessa</option>
+        <option value="EucrosiaUPC">EucrosiaUPC</option>
+        <option value="Euphemia">Euphemia</option>
+        <option value="Franklin Gothic Medium">Franklin Gothic Medium</option>
+        <option value="FrankRuehl">FrankRuehl</option>
+        <option value="FreeMono">FreeMono</option>
+        <option value="FreeSans">FreeSans</option>
+        <option value="FreeSerif">FreeSerif</option>
+        <option value="FreesiaUPC">FreesiaUPC</option>
+        <option value="Gabriola">Gabriola</option>
+        <option value="Gadugi">Gadugi</option>
+        <option value="Gautami">Gautami</option>
+        <option value="Georgia">Georgia</option>
+        <option value="Gisha">Gisha</option>
+        <option value="Gulim">Gulim</option>
+        <option value="GulimChe">GulimChe</option>
+        <option value="Gungsuh">Gungsuh</option>
+        <option value="GungsuhChe">GungsuhChe</option>
+        <option value="Impact">Impact</option>
+        <option value="IrisUPC">IrisUPC</option>
+        <option value="Iskoola Pota">Iskoola Pota</option>
+        <option value="JasmineUPC">JasmineUPC</option>
+        <option value="Javanese Text">Javanese Text</option>
+        <option value="Jomolhari">Jomolhari</option>
+        <option value="Kalinga">Kalinga</option>
+        <option value="Kartika">Kartika</option>
+        <option value="Khmer OS">Khmer OS</option>
+        <option value="Khmer OS Content">Khmer OS Content</option>
+        <option value="Khmer OS System">Khmer OS System</option>
+        <option value="Khmer UI">Khmer UI</option>
+        <option value="KodchiangUPC">KodchiangUPC</option>
+        <option value="Kokila">Kokila</option>
+        <option value="Lao UI">Lao UI</option>
+        <option value="Latha">Latha</option>
+        <option value="Leelawadee">Leelawadee</option>
+        <option value="Leelawadee UI">Leelawadee UI</option>
+        <option value="Leelawadee UI Semilight">Leelawadee UI Semilight</option>
+        <option value="Levenim MT">Levenim MT</option>
+        <option value="Liberation Mono">Liberation Mono</option>
+        <option value="Liberation Sans">Liberation Sans</option>
+        <option value="Liberation Serif">Liberation Serif</option>
+        <option value="LilyUPC">LilyUPC</option>
+        <option value="LKLUG">LKLUG</option>
+        <option value="Lohit Assamese">Lohit Assamese</option>
+        <option value="Lohit Bengali">Lohit Bengali</option>
+        <option value="Lohit Devanagari">Lohit Devanagari</option>
+        <option value="Lohit Gujarati">Lohit Gujarati</option>
+        <option value="Lohit Kannada">Lohit Kannada</option>
+        <option value="Lohit Malayalam">Lohit Malayalam</option>
+        <option value="Lohit Marathi">Lohit Marathi</option>
+        <option value="Lohit Nepali">Lohit Nepali</option>
+        <option value="Lohit Oriya">Lohit Oriya</option>
+        <option value="Lohit Punjabi">Lohit Punjabi</option>
+        <option value="Lohit Tamil">Lohit Tamil</option>
+        <option value="Lohit Telugu">Lohit Telugu</option>
+        <option value="Lucida Bright">Lucida Bright</option>
+        <option value="Lucida Console">Lucida Console</option>
+        <option value="Lucida Sans">Lucida Sans</option>
+        <option value="Lucida Sans Typewriter">Lucida Sans Typewriter</option>
+        <option value="Lucida Sans Unicode">Lucida Sans Unicode</option>
+        <option value="Madan2">Madan2</option>
+        <option value="Malgun Gothic">Malgun Gothic</option>
+        <option value="Mangal">Mangal</option>
+        <option value="Marlett">Marlett</option>
+        <option value="Meera">Meera</option>
+        <option value="Meiryo">Meiryo</option>
+        <option value="Meiryo UI">Meiryo UI</option>
+        <option value="Microsoft Himalaya">Microsoft Himalaya</option>
+        <option value="Microsoft JhengHei">Microsoft JhengHei</option>
+        <option value="Microsoft JhengHei Light">Microsoft JhengHei Light</option>
+        <option value="Microsoft JhengHei UI">Microsoft JhengHei UI</option>
+        <option value="Microsoft JhengHei UI Light">Microsoft JhengHei UI Light</option>
+        <option value="Microsoft New Tai Lue">Microsoft New Tai Lue</option>
+        <option value="Microsoft PhagsPa">Microsoft PhagsPa</option>
+        <option value="Microsoft Sans Serif">Microsoft Sans Serif</option>
+        <option value="Microsoft Tai Le">Microsoft Tai Le</option>
+        <option value="Microsoft Uighur">Microsoft Uighur</option>
+        <option value="Microsoft YaHei UI">Microsoft YaHei UI</option>
+        <option value="Microsoft YaHei UI Light">Microsoft YaHei UI Light</option>
+        <option value="Microsoft Yi Baiti">Microsoft Yi Baiti</option>
+        <option value="MingLiU">MingLiU</option>
+        <option value="MingLiU-ExtB">MingLiU-ExtB</option>
+        <option value="MingLiU_HKSCS">MingLiU_HKSCS</option>
+        <option value="MingLiU_HKSCS-ExtB">MingLiU_HKSCS-ExtB</option>
+        <option value="Miriam">Miriam</option>
+        <option value="Miriam Fixed">Miriam Fixed</option>
+        <option value="Mongolian Baiti">Mongolian Baiti</option>
+        <option value="Monospaced">Monospaced</option>
+        <option value="MoolBoran">MoolBoran</option>
+        <option value="MS Gothic">MS Gothic</option>
+        <option value="MS Mincho">MS Mincho</option>
+        <option value="MS PGothic">MS PGothic</option>
+        <option value="MS PMincho">MS PMincho</option>
+        <option value="MS UI Gothic">MS UI Gothic</option>
+        <option value="MV Boli">MV Boli</option>
+        <option value="Myanmar Text">Myanmar Text</option>
+        <option value="NanumGothic">NanumGothic</option>
+        <option value="NanumGothicExtraBold">NanumGothicExtraBold</option>
+        <option value="Narkisim">Narkisim</option>
+        <option value="Nimbus Mono L">Nimbus Mono L</option>
+        <option value="Nimbus Roman No9 L">Nimbus Roman No9 L</option>
+        <option value="Nimbus Sans L">Nimbus Sans L</option>
+        <option value="Nirmala UI">Nirmala UI</option>
+        <option value="Nirmala UI Semilight">Nirmala UI Semilight</option>
+        <option value="Nuosu SIL">Nuosu SIL</option>
+        <option value="Nyala">Nyala</option>
+        <option value="Overpass">Overpass</option>
+        <option value="Padauk">Padauk</option>
+        <option value="PakType Naskh Basic">PakType Naskh Basic</option>
+        <option value="Palatino Linotype">Palatino Linotype</option>
+        <option value="Plantagenet Cherokee">Plantagenet Cherokee</option>
+        <option value="PMingLiU">PMingLiU</option>
+        <option value="PMingLiU-ExtB">PMingLiU-ExtB</option>
+        <option value="PT Sans">PT Sans</option>
+        <option value="PT Sans Narrow">PT Sans Narrow</option>
+        <option value="Raavi">Raavi</option>
+        <option value="Rod">Rod</option>
+        <option value="Sakkal Majalla">Sakkal Majalla</option>
+        <option value="SansSerif">SansSerif</option>
+        <option value="Segoe Print">Segoe Print</option>
+        <option value="Segoe Script">Segoe Script</option>
+        <option value="Segoe UI">Segoe UI</option>
+        <option value="Segoe UI Black">Segoe UI Black</option>
+        <option value="Segoe UI Emoji">Segoe UI Emoji</option>
+        <option value="Segoe UI Light">Segoe UI Light</option>
+        <option value="Segoe UI Semibold">Segoe UI Semibold</option>
+        <option value="Segoe UI Semilight">Segoe UI Semilight</option>
+        <option value="Segoe UI Symbol">Segoe UI Symbol</option>
+        <option value="Serif">Serif</option>
+        <option value="Shonar Bangla">Shonar Bangla</option>
+        <option value="Shruti">Shruti</option>
+        <option value="Simplified Arabic">Simplified Arabic</option>
+        <option value="Simplified Arabic Fixed">Simplified Arabic Fixed</option>
+        <option value="SimSun-ExtB">SimSun-ExtB</option>
+        <option value="Sitka Banner">Sitka Banner</option>
+        <option value="Sitka Display">Sitka Display</option>
+        <option value="Sitka Heading">Sitka Heading</option>
+        <option value="Sitka Small">Sitka Small</option>
+        <option value="Sitka Subheading">Sitka Subheading</option>
+        <option value="Sitka Text">Sitka Text</option>
+        <option value="Standard Symbols L">Standard Symbols L</option>
+        <option value="STIX">STIX</option>
+        <option value="Sylfaen">Sylfaen</option>
+        <option value="Symbol">Symbol</option>
+        <option value="Tahoma">Tahoma</option>
+        <option value="Times New Roman">Times New Roman</option>
+        <option value="Traditional Arabic">Traditional Arabic</option>
+        <option value="Trebuchet MS">Trebuchet MS</option>
+        <option value="Tunga">Tunga</option>
+        <option value="Urdu Typesetting">Urdu Typesetting</option>
+        <option value="URW Bookman L">URW Bookman L</option>
+        <option value="URW Chancery L">URW Chancery L</option>
+        <option value="URW Gothic L">URW Gothic L</option>
+        <option value="URW Palladio L">URW Palladio L</option>
+        <option value="Utopia">Utopia</option>
+        <option value="Utsaah">Utsaah</option>
+        <option value="Vani">Vani</option>
+        <option value="Verdana">Verdana</option>
+        <option value="Vijaya">Vijaya</option>
+        <option value="VL Gothic">VL Gothic</option>
+        <option value="Vrinda">Vrinda</option>
+        <option value="Waree">Waree</option>
+        <option value="Webdings">Webdings</option>
+        <option value="Wingdings">Wingdings</option>
+        <option value="Wingdings 2">Wingdings 2</option>
+        <option value="Wingdings 3">Wingdings 3</option>
+        <option value="Yu Gothic">Yu Gothic</option>
+        <option value="Yu Gothic Light">Yu Gothic Light</option>
+        <option value="Yu Mincho">Yu Mincho</option>
+        <option value="Yu Mincho Demibold">Yu Mincho Demibold</option>
+        <option value="Yu Mincho Light">Yu Mincho Light</option>
+        <option value="仿宋">仿宋</option>
+        <option value="仿宋_GB2312">仿宋_GB2312</option>
+        <option value="华文中宋">华文中宋</option>
+        <option value="华文仿宋">华文仿宋</option>
+        <option value="华文宋体">华文宋体</option>
+        <option value="华文彩云">华文彩云</option>
+        <option value="华文新魏">华文新魏</option>
+        <option value="华文楷体">华文楷体</option>
+        <option value="华文琥珀">华文琥珀</option>
+        <option value="华文细黑">华文细黑</option>
+        <option value="华文行楷">华文行楷</option>
+        <option value="华文隶书">华文隶书</option>
+        <option value="宋体">宋体</option>
+        <option value="宋体-PUA">宋体-PUA</option>
+        <option value="幼圆">幼圆</option>
+        <option value="微软雅黑">微软雅黑</option>
+        <option value="微软雅黑 Light">微软雅黑 Light</option>
+        <option value="文泉驿微米黑">文泉驿微米黑</option>
+        <option value="文泉驿正黑">文泉驿正黑</option>
+        <option value="文泉驿点阵正黑">文泉驿点阵正黑</option>
+        <option value="文泉驿等宽微米黑">文泉驿等宽微米黑</option>
+        <option value="文泉驿等宽正黑">文泉驿等宽正黑</option>
+        <option value="新宋体">新宋体</option>
+        <option value="方正姚体">方正姚体</option>
+        <option value="方正舒体">方正舒体</option>
+        <option value="楷体">楷体</option>
+        <option value="楷体_GB2312">楷体_GB2312</option>
+        <option value="隶书">隶书</option>
+        <option value="黑体">黑体</option>
+    </select>
+    <input name="fontFill" id="fontFill"/><br/>
+    <select name="fontStyle" value="normal">
+        <option value="">字体样式</option>
+        <option value="normal">正常</option>
+        <option value="italic">字体斜体</option>
+        <option value="oblique">文字倾斜</option>
+    </select>
+    <select name="fontWeight" value="normal">
+        <option value="">字体粗细</option>
+        <option value="normal">正常</option>
+        <option value="bold">加粗</option>
+        <option value="400">400</option>
+        <option value="600">600</option>
+        <option value="800">800</option>
+    </select>
+    <select name="textAlign" value="left">
+        <option value="">文本对齐</option>
+        <option value="left">左对齐</option>
+        <option value="center">中间对齐</option>
+        <option value="right">右对齐</option>
+    </select>
+    <select name="textDecoration" value="underline">
+        <option value="">文本修饰</option>
+        <option value="overline">上划线</option>
+        <option value="line-through">删除线</option>
+        <option value="underline">下划线</option>
+    </select>
+
+    <textarea name="text" placeholder="请输入备注信息" rows="10" cols="20" style="width:100%; resize: vertical;"></textarea><br/>
+    <input type="button" value="保存" id='editpanelToText' style="width:100%;"/>
+    <input name="width" style="display: none;">
+    <input name="height" style="display: none;">
+    <input name="left" style="display: none;">
+    <input name="top" style="display: none;">
+</div>
 </body>
 </html>
-
-<script src="js/fabric-1.4.0.js"></script>
-<script src="js/jquery.min.js"></script>
-
-<script type="text/javascript">
-    var canvas;
-    var canvasStateArray = [];
-
-
-    //保存画布状态
-    function saveCurrCanvasState(e) {
-        setTimeout(function () {
-            console.log('自动保存操作');
-            canvas.clone(function (obj) {
-                if (canvasStateArray.length >= 100000) {
-                    canvasStateArray.splice(0, 10000);
-                }
-                canvasStateArray.push(obj);
-                console.log(canvasStateArray);
-            });
-
-            //something else
-
-        }, 100);
-    }
-
-    $(function () {
-        $(".transformMatrix_item").change(function () {
-            if (canvas.getActiveObject()) {
-                var transformMatrixArray = [];
-                var a = $("#transformMatrix_item_a").val();
-                var b = $("#transformMatrix_item_b").val();
-                var c = $("#transformMatrix_item_c").val();
-                var d = $("#transformMatrix_item_d").val();
-                var tx = $("#transformMatrix_item_tx").val();
-                var ty = $("#transformMatrix_item_ty").val();
-                transformMatrixArray.push(a, b, c, d, tx, ty);
-                console.log('改变了：' + transformMatrixArray);
-                canvas.getActiveObject().set({
-                    transformMatrix: transformMatrixArray
-                });
-                canvas.renderAll();
-            }
-        });
-        $("#cbox_whiteTrans").change(function () {
-            if ($(this).attr('checked')) {
-                $(this).removeAttr('checked')
-            } else {
-                $(this).attr('checked', 'checked')
-            }
-            console.log($(this).attr('checked'));
-        });
-        $(document).bind("contextmenu", function () {
-            return false;
-        });//屏蔽右键
-        canvas = new fabric.Canvas('fabrictable', {
-            allowTouchScrolling: true
-        });
-        canvas.setWidth(document.body.clientWidth - 5);
-        canvas.setHeight(window.innerHeight - 8);
-
-        //新建
-        $("#btn_new").click(function () {
-            console.log('新建');
-            var jsonstr = prompt('请输入JSON');
-            if (jsonstr) {
-                var jsonobj = JSON.parse(jsonstr);
-                if (jsonobj.type == 'image') {//处理单文件
-                    fabric.Image.fromObject(jsonobj, function (obj) {
-                        canvas.add(obj).setActiveObject(obj);
-                        canvas.renderAll();
-                    });
-                } else if (jsonobj.type == 'group') {//处理组
-                    fabric.Group.fromObject(jsonobj, function (group) {
-                        group.set({
-                            left: 0,
-                            top: 0
-                        });
-                        canvas.add(group).setActiveGroup(group);
-                        canvas.renderAll();
-                    });
-                }
-            }
-        });
-
-        //打开
-        $("#btn_open").click(function () {
-            console.log('打开');
-
-        });
-
-        //打开文件
-        $("#btn_openfile").change(function () {
-            var file = this.files[0];
-            var reader = new FileReader();
-            reader.onload = function () {
-                var url = reader.result;
-                fabric.Image.fromURL(url, function (img) {
-                    img.scale(0.5).set({
-                        left: 200,
-                        top: 200,
-                        angle: -15
-                    });
-                    canvas.add(img).setActiveObject(img);
-                    //保存当前画布
-                    saveCurrCanvasState();
-                    canvas.renderAll();
-                });
-            };
-            reader.readAsDataURL(file);
-        });
-        //复制:ok
-        $("#btn_copy").click(function () {
-            console.log('开始复制-->');
-            var target = canvas.getActiveObject() == null ? canvas.getActiveGroup() : canvas.getActiveObject();
-            if (canvas.getActiveObject()) {
-                target = canvas.getActiveObject();
-                //处理单个复制
-                console.log('图片对象...');
-                var copy_target = fabric.util.object.clone(target);
-                canvas.add(copy_target);
-            } else if (canvas.getActiveGroup()) {
-                target = canvas.getActiveGroup();
-                //处理多个复制
-                console.log('动态组合对象...');
-                //重新添加副本
-                for (var i = 0; i < target.getObjects().length; i++) {
-                    var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
-                    copy_obj.set({
-                        left: copy_obj.left + target.left,
-                        top: copy_obj.top + target.top,
-                        hasControls: true,
-                        hasBorders: true,
-                        active: false
-                    });
-                    canvas.add(copy_obj);
-                }
-            }
-            canvas.renderAll();
-            console.log('<--复制完成');
-        });
-        //删除:ok
-        $("#btn_del").click(function () {
-            console.log('开始删除-->');
-            if (canvas.getActiveObject()) {
-                canvas.remove(canvas.getActiveObject());
-            } else if (canvas.getActiveGroup()) {
-                for (var i = 0; i < canvas.getActiveGroup().getObjects().length; i++) {
-                    canvas.remove(canvas.getActiveGroup().getObjects()[i]);
-                }
-                canvas.setActiveGroup(null);
-            }
-            canvas.renderAll();
-            console.log('<--删除完成');
-        });
-        //保存:ok
-        $("#btn_save").click(function () {
-            console.log('保存')
-            if (canvas.getActiveObject()) {
-                console.log(JSON.stringify(canvas.getActiveObject()));
-                prompt('拷贝下面的数据可以直接保存', JSON.stringify(canvas.getActiveObject()));
-            } else if (canvas.getActiveGroup()) {
-                console.log(JSON.stringify(canvas.getActiveGroup()));
-                prompt('拷贝下面的数据可以直接保存', JSON.stringify(canvas.getActiveGroup()));
-            }
-
-        });
-        //另存为
-        $("#btn_saveAs").click(function () {
-            if (canvas.getActiveObject()) {
-                window.open(canvas.getActiveObject().toDataURL(), '图片另存为');
-            } else if (canvas.getActiveGroup()) {
-                window.open(canvas.getActiveGroup().toDataURL(), '图片另存为');
-            }
-        });
-
-        //水平镜像:ok
-        $("#btn_xMirror").click(function () {
-            if (canvas.getActiveObject()) {
-                var obj = canvas.getActiveObject();
-                obj.flipX = !obj.flipX;
-            } else if (canvas.getActiveGroup()) {
-                canvas.getActiveGroup().flipX = !canvas.getActiveGroup().flipX;
-            }
-            canvas.renderAll();
-        });
-        //垂直镜像:ok
-        $("#btn_yMirror").click(function () {
-            if (canvas.getActiveObject()) {
-                var obj = canvas.getActiveObject();
-                obj.flipY = !obj.flipY;
-            } else if (canvas.getActiveGroup()) {
-                canvas.getActiveGroup().flipY = !canvas.getActiveGroup().flipY;
-            }
-            canvas.renderAll();
-        });
-
-        //撤销
-        $("#btn_back").click(function () {
-            if (!canvasStateArray) return;
-            var obj = canvasStateArray.pop();
-            if (obj) {
-                canvas.clear();
-                for (var i = 0; i < obj.getObjects().length; i++) {
-                    canvas.add(obj.getObjects()[i]).setActiveObject(obj.getObjects()[i]);
-                }
-                canvas.renderAll();
-            }
-
-        });
-        //重做
-        $("#btn_redo").click(function () {
-            if (!canvasStateArray) return;
-            var obj = canvasStateArray[0];
-            if (obj) {
-                canvas.clear();
-                for (var i = 0; i < obj.getObjects().length; i++) {
-                    canvas.add(obj.getObjects()[i]).setActiveObject(obj.getObjects()[i]);
-                }
-                canvasStateArray = [];
-                canvas.renderAll();
-            }
-        });
-
-        //顶层:ok
-        $("#btn_top").click(function () {
-            if (canvas.getActiveObject()) {
-                canvas.getActiveObject().bringToFront();
-            } else if (canvas.getActiveGroup()) {
-            }
-            canvas.renderAll();
-        });
-        //底层:ok
-        $("#btn_bottom").click(function () {
-            if (canvas.getActiveObject()) {
-                canvas.getActiveObject().sendToBack();
-            } else if (canvas.getActiveGroup()) {
-            }
-            canvas.renderAll();
-        });
-        //上层:ok
-        $("#btn_up").click(function () {
-            if (canvas.getActiveObject()) {
-                canvas.getActiveObject().bringForward();
-            } else if (canvas.getActiveGroup()) {
-
-            }
-            canvas.renderAll();
-        });
-        //下层:ok
-        $("#btn_down").click(function () {
-            console.log(canvas.getActiveObject());
-            if (canvas.getActiveObject()) {
-                canvas.getActiveObject().sendBackwards();
-            } else if (canvas.getActiveGroup()) {
-            }
-            canvas.renderAll();
-        });
-
-        //成组
-        $("#btn_group").click(function () {
-            console.log('开始分组-->');
-            var target = canvas.getActiveGroup();
-            if (target) {
-                //处理多个分组
-                console.log('组合对象...');
-                var copy_target = fabric.util.object.clone(target);
-                copy_target._objects = [];//清除内部元素
-                //重新添加副本
-                for (var i = 0; i < target.getObjects().length; i++) {
-                    var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
-                    copy_target._objects.push(copy_obj);
-                    canvas.remove(target.getObjects()[i]);
-                }
-                canvas.remove(target);
-                canvas.add(copy_target);
-                canvas.renderAll();
-            }
-            console.log('<--分组完成');
-        });
-        //解组
-        $("#btn_ungroup").click(function () {
-            console.log('开始解组-->');
-            var target = canvas.getActiveObject();
-            if (target) {
-                //处理单个解组
-                console.log('组合对象...');
-                var copy_target = fabric.util.object.clone(target);
-                //处理多个解组
-                for (var i = 0; i < target.getObjects().length; i++) {
-                    var copy_obj = fabric.util.object.clone(target.getObjects()[i]);
-                    copy_obj.set({
-                        left: copy_obj.left + copy_target.left,
-                        top: copy_obj.top + copy_target.top,
-                        hasControls: true,
-                        hasBorders: true,
-                        active: false
-                    });
-                    canvas.add(copy_obj);
-                }
-                canvas.remove(target);
-                canvas.renderAll();
-            }
-            console.log('<--解组完成');
-        });
-
-        //锁定
-        $("#btn_lock").click(function () {
-            if (canvas.getActiveObject()) {
-                canvas.getActiveObject().lockMovementX = !canvas.getActiveObject().lockMovementX;
-                canvas.getActiveObject().lockMovementY = !canvas.getActiveObject().lockMovementY;
-                canvas.getActiveObject().lockRotation = !canvas.getActiveObject().lockRotation;
-                canvas.getActiveObject().lockScalingFlip = !canvas.getActiveObject().lockScalingFlip;
-                canvas.getActiveObject().lockScalingX = !canvas.getActiveObject().lockScalingX;
-                canvas.getActiveObject().lockScalingY = !canvas.getActiveObject().lockScalingY;
-            } else if (canvas.getActiveGroup()) {
-                for (var i = 0; i < canvas.getActiveGroup().getObjects().length; i++) {
-                    canvas.getActiveGroup().getObjects()[i].lockMovementX = !canvas.getActiveGroup().getObjects()[i].lockMovementX;
-                    canvas.getActiveGroup().getObjects()[i].lockMovementY = !canvas.getActiveGroup().getObjects()[i].lockMovementY;
-                    canvas.getActiveGroup().getObjects()[i].lockRotation = !canvas.getActiveGroup().getObjects()[i].lockRotation;
-                    canvas.getActiveGroup().getObjects()[i].lockScalingFlip = !canvas.getActiveGroup().getObjects()[i].lockScalingFlip;
-                    canvas.getActiveGroup().getObjects()[i].lockScalingX = !canvas.getActiveGroup().getObjects()[i].lockScalingX;
-                    canvas.getActiveGroup().getObjects()[i].lockScalingY = !canvas.getActiveGroup().getObjects()[i].lockScalingY;
-                }
-            }
-            canvas.renderAll();
-        });
-        //形变
-        $("#btn_change").click(function () {
-
-
-        });
-        canvas.on('object:modified', saveCurrCanvasState);
-        canvas.on('object:selected', function (event) {
-//            if(!event.target) return;
-//            console.log('目标被选中：'+event.target);
-//            var hand = $("<button>哈哈</button>");
-//            hand.click(function(){
-//                console.log(event.target);
-//            });
-//            hand.css({
-//                position:'absolute',
-//                left:event.target.left,
-//                top:event.target.top
-//            });
-//            $(document.body).append(hand);
-//            console.log(event.target.left+"/"+event.target.top);
-        });
-        canvas.on('object:move', function (event) {
-
-        });
-    });
-
-</script>
